@@ -1,6 +1,7 @@
 import json
 import os
 import uuid
+import tempfile
 from datetime import timedelta
 from typing import Literal, Optional
 
@@ -35,8 +36,6 @@ from posthog.tasks.exports.exporter_utils import log_error_if_site_url_not_reach
 from posthog.utils import absolute_uri
 
 logger = structlog.get_logger(__name__)
-
-TMP_DIR = "/tmp"  # NOTE: Externalise this to ENV var
 
 ScreenWidth = Literal[800, 1920]
 CSSSelector = Literal[".InsightCard", ".ExportedInsight"]
@@ -85,8 +84,8 @@ def _export_to_png(exported_asset: ExportedAsset) -> None:
             )
 
         image_id = str(uuid.uuid4())
-        image_path = os.path.join(TMP_DIR, f"{image_id}.png")
-
+        with tempfile.TemporaryFile() as tmp:
+            pass
         if not os.path.exists(TMP_DIR):
             os.makedirs(TMP_DIR)
 

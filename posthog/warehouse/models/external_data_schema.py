@@ -311,45 +311,47 @@ def filter_postgres_incremental_fields(columns: list[tuple[str, str]]) -> list[t
 def get_postgres_row_count(
     host: str, port: str, database: str, user: str, password: str, schema: str, ssh_tunnel: SSHTunnel
 ) -> dict[str, int]:
+    import tempfile
     def get_row_count(postgres_host: str, postgres_port: int):
-        connection = psycopg2.connect(
-            host=postgres_host,
-            port=postgres_port,
-            dbname=database,
-            user=user,
-            password=password,
-            sslmode="prefer",
-            connect_timeout=5,
-            sslrootcert="/tmp/no.txt",
-            sslcert="/tmp/no.txt",
-            sslkey="/tmp/no.txt",
-        )
+        with tempfile.TemporaryFile() as tmp:
+            connection = psycopg2.connect(
+                host=postgres_host,
+                port=postgres_port,
+                dbname=database,
+                user=user,
+                password=password,
+                sslmode="prefer",
+                connect_timeout=5,
+                sslrootcert=tmp.name,
+                sslcert=tmp.name,
+                sslkey=tmp.name,
+            )
 
-        try:
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    "SELECT tablename as table_name FROM pg_tables WHERE schemaname = %(schema)s",
-                    {"schema": schema},
-                )
-                tables = cursor.fetchall()
-
-                if not tables:
-                    return {}
-
-                counts = [
-                    sql.SQL("SELECT {table_name} AS table_name, COUNT(*) AS row_count FROM {schema}.{table}").format(
-                        table_name=sql.Literal(table[0]), schema=sql.Identifier(schema), table=sql.Identifier(table[0])
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT tablename as table_name FROM pg_tables WHERE schemaname = %(schema)s",
+                        {"schema": schema},
                     )
-                    for table in tables
-                ]
+                    tables = cursor.fetchall()
 
-                union_counts = sql.SQL(" UNION ALL ").join(counts)
-                cursor.execute(union_counts)
-                row_count_result = cursor.fetchall()
-                row_counts = {row[0]: row[1] for row in row_count_result}
-            return row_counts
-        finally:
-            connection.close()
+                    if not tables:
+                        return {}
+
+                    counts = [
+                        sql.SQL("SELECT {table_name} AS table_name, COUNT(*) AS row_count FROM {schema}.{table}").format(
+                            table_name=sql.Literal(table[0]), schema=sql.Identifier(schema), table=sql.Identifier(table[0])
+                        )
+                        for table in tables
+                    ]
+
+                    union_counts = sql.SQL(" UNION ALL ").join(counts)
+                    cursor.execute(union_counts)
+                    row_count_result = cursor.fetchall()
+                    row_counts = {row[0]: row[1] for row in row_count_result}
+                return row_counts
+            finally:
+                connection.close()
 
     if ssh_tunnel.enabled:
         with ssh_tunnel.get_tunnel(host, int(port)) as tunnel:
@@ -364,32 +366,31 @@ def get_postgres_row_count(
 def get_postgres_schemas(
     host: str, port: str, database: str, user: str, password: str, schema: str, ssh_tunnel: SSHTunnel
 ) -> dict[str, list[tuple[str, str]]]:
+    import tempfile
     def get_schemas(postgres_host: str, postgres_port: int):
-        connection = psycopg2.connect(
-            host=postgres_host,
-            port=postgres_port,
-            dbname=database,
-            user=user,
-            password=password,
-            sslmode="prefer",
-            connect_timeout=5,
-            sslrootcert="/tmp/no.txt",
-            sslcert="/tmp/no.txt",
-            sslkey="/tmp/no.txt",
-        )
-
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = %(schema)s ORDER BY table_name ASC",
-                {"schema": schema},
+        with tempfile.TemporaryFile() as tmp:
+            connection = psycopg2.connect(
+                host=postgres_host,
+                port=postgres_port,
+                dbname=database,
+                user=user,
+                password=password,
+                sslmode="prefer",
+                connect_timeout=5,
             )
-            result = cursor.fetchall()
 
-            schema_list = defaultdict(list)
-            for row in result:
-                schema_list[row[0]].append((row[1], row[2]))
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = %(schema)s ORDER BY table_name ASC",
+                    {"schema": schema},
+                )
+                result = cursor.fetchall()
 
-        connection.close()
+                schema_list = defaultdict(list)
+                for row in result:
+                    schema_list[row[0]].append((row[1], row[2]))
+
+            connection.close()
 
         return schema_list
 
