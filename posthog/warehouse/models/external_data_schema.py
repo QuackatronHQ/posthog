@@ -86,9 +86,9 @@ class ExternalDataSchema(CreatedMetaFields, UpdatedMetaFields, UUIDModel, Delete
         if last_value_py is None:
             return
 
-        if (
-            incremental_field_type == IncrementalFieldType.Integer
-            or incremental_field_type == IncrementalFieldType.Numeric
+        if incremental_field_type in (
+            IncrementalFieldType.Integer,
+            IncrementalFieldType.Numeric,
         ):
             if isinstance(last_value_py, int | float):
                 last_value_json = last_value_py
@@ -96,9 +96,9 @@ class ExternalDataSchema(CreatedMetaFields, UpdatedMetaFields, UUIDModel, Delete
                 last_value_json = last_value_py.isoformat()
             else:
                 last_value_json = int(last_value_py)
-        elif (
-            incremental_field_type == IncrementalFieldType.DateTime
-            or incremental_field_type == IncrementalFieldType.Timestamp
+        elif incremental_field_type in (
+            IncrementalFieldType.DateTime,
+            IncrementalFieldType.Timestamp,
         ):
             if isinstance(last_value_py, datetime):
                 last_value_json = last_value_py.isoformat()
@@ -109,12 +109,6 @@ class ExternalDataSchema(CreatedMetaFields, UpdatedMetaFields, UUIDModel, Delete
 
         self.sync_type_config["incremental_field_last_value"] = last_value_json
         self.save()
-
-    def soft_delete(self):
-        self.deleted = True
-        self.deleted_at = datetime.now()
-        self.save()
-
 
 @database_sync_to_async
 def asave_external_data_schema(schema: ExternalDataSchema) -> None:
@@ -273,20 +267,19 @@ def get_snowflake_schemas(
         schema="information_schema",
         role=role,
         **auth_connect_args,
-    ) as connection:
-        with connection.cursor() as cursor:
-            if cursor is None:
-                raise Exception("Can't create cursor to Snowflake")
+    ) as connection, connection.cursor() as cursor:
+        if cursor is None:
+            raise Exception("Can't create cursor to Snowflake")
 
-            cursor.execute(
-                "SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = %(schema)s ORDER BY table_name ASC",
-                {"schema": schema},
-            )
-            result = cursor.fetchall()
+        cursor.execute(
+            "SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = %(schema)s ORDER BY table_name ASC",
+            {"schema": schema},
+        )
+        result = cursor.fetchall()
 
-            schema_list = defaultdict(list)
-            for row in result:
-                schema_list[row[0]].append((row[1], row[2]))
+        schema_list = defaultdict(list)
+        for row in result:
+            schema_list[row[0]].append((row[1], row[2]))
 
     if file_name is not None:
         os.unlink(file_name)
@@ -302,7 +295,7 @@ def filter_postgres_incremental_fields(columns: list[tuple[str, str]]) -> list[t
             results.append((column_name, IncrementalFieldType.Timestamp))
         elif type == "date":
             results.append((column_name, IncrementalFieldType.Date))
-        elif type == "integer" or type == "smallint" or type == "bigint":
+        elif type in ("integer", "smallint", "bigint"):
             results.append((column_name, IncrementalFieldType.Integer))
 
     return results
@@ -311,45 +304,47 @@ def filter_postgres_incremental_fields(columns: list[tuple[str, str]]) -> list[t
 def get_postgres_row_count(
     host: str, port: str, database: str, user: str, password: str, schema: str, ssh_tunnel: SSHTunnel
 ) -> dict[str, int]:
+    import tempfile
     def get_row_count(postgres_host: str, postgres_port: int):
-        connection = psycopg2.connect(
-            host=postgres_host,
-            port=postgres_port,
-            dbname=database,
-            user=user,
-            password=password,
-            sslmode="prefer",
-            connect_timeout=5,
-            sslrootcert="/tmp/no.txt",
-            sslcert="/tmp/no.txt",
-            sslkey="/tmp/no.txt",
-        )
+        with tempfile.TemporaryFile() as tmp:
+            connection = psycopg2.connect(
+                host=postgres_host,
+                port=postgres_port,
+                dbname=database,
+                user=user,
+                password=password,
+                sslmode="prefer",
+                connect_timeout=5,
+                sslrootcert=tmp.name,
+                sslcert=tmp.name,
+                sslkey=tmp.name,
+            )
 
-        try:
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    "SELECT tablename as table_name FROM pg_tables WHERE schemaname = %(schema)s",
-                    {"schema": schema},
-                )
-                tables = cursor.fetchall()
-
-                if not tables:
-                    return {}
-
-                counts = [
-                    sql.SQL("SELECT {table_name} AS table_name, COUNT(*) AS row_count FROM {schema}.{table}").format(
-                        table_name=sql.Literal(table[0]), schema=sql.Identifier(schema), table=sql.Identifier(table[0])
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT tablename as table_name FROM pg_tables WHERE schemaname = %(schema)s",
+                        {"schema": schema},
                     )
-                    for table in tables
-                ]
+                    tables = cursor.fetchall()
 
-                union_counts = sql.SQL(" UNION ALL ").join(counts)
-                cursor.execute(union_counts)
-                row_count_result = cursor.fetchall()
-                row_counts = {row[0]: row[1] for row in row_count_result}
-            return row_counts
-        finally:
-            connection.close()
+                    if not tables:
+                        return {}
+
+                    counts = [
+                        sql.SQL("SELECT {table_name} AS table_name, COUNT(*) AS row_count FROM {schema}.{table}").format(
+                            table_name=sql.Literal(table[0]), schema=sql.Identifier(schema), table=sql.Identifier(table[0])
+                        )
+                        for table in tables
+                    ]
+
+                    union_counts = sql.SQL(" UNION ALL ").join(counts)
+                    cursor.execute(union_counts)
+                    row_count_result = cursor.fetchall()
+                    row_counts = {row[0]: row[1] for row in row_count_result}
+                return row_counts
+            finally:
+                connection.close()
 
     if ssh_tunnel.enabled:
         with ssh_tunnel.get_tunnel(host, int(port)) as tunnel:
@@ -364,32 +359,31 @@ def get_postgres_row_count(
 def get_postgres_schemas(
     host: str, port: str, database: str, user: str, password: str, schema: str, ssh_tunnel: SSHTunnel
 ) -> dict[str, list[tuple[str, str]]]:
+    import tempfile
     def get_schemas(postgres_host: str, postgres_port: int):
-        connection = psycopg2.connect(
-            host=postgres_host,
-            port=postgres_port,
-            dbname=database,
-            user=user,
-            password=password,
-            sslmode="prefer",
-            connect_timeout=5,
-            sslrootcert="/tmp/no.txt",
-            sslcert="/tmp/no.txt",
-            sslkey="/tmp/no.txt",
-        )
-
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = %(schema)s ORDER BY table_name ASC",
-                {"schema": schema},
+        with tempfile.TemporaryFile() as tmp:
+            connection = psycopg2.connect(
+                host=postgres_host,
+                port=postgres_port,
+                dbname=database,
+                user=user,
+                password=password,
+                sslmode="prefer",
+                connect_timeout=5,
             )
-            result = cursor.fetchall()
 
-            schema_list = defaultdict(list)
-            for row in result:
-                schema_list[row[0]].append((row[1], row[2]))
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = %(schema)s ORDER BY table_name ASC",
+                    {"schema": schema},
+                )
+                result = cursor.fetchall()
 
-        connection.close()
+                schema_list = defaultdict(list)
+                for row in result:
+                    schema_list[row[0]].append((row[1], row[2]))
+
+            connection.close()
 
         return schema_list
 
@@ -413,7 +407,7 @@ def filter_mysql_incremental_fields(columns: list[tuple[str, str]]) -> list[tupl
             results.append((column_name, IncrementalFieldType.Date))
         elif type == "datetime":
             results.append((column_name, IncrementalFieldType.DateTime))
-        elif type == "tinyint" or type == "smallint" or type == "mediumint" or type == "int" or type == "bigint":
+        elif type in ("tinyint", "smallint", "mediumint", "int", "bigint"):
             results.append((column_name, IncrementalFieldType.Integer))
 
     return results
@@ -476,9 +470,9 @@ def filter_mssql_incremental_fields(columns: list[tuple[str, str]]) -> list[tupl
         type = type.lower()
         if type == "date":
             results.append((column_name, IncrementalFieldType.Date))
-        elif type == "datetime" or type == "datetime2" or type == "smalldatetime":
+        elif type in ("datetime", "datetime2", "smalldatetime"):
             results.append((column_name, IncrementalFieldType.DateTime))
-        elif type == "tinyint" or type == "smallint" or type == "int" or type == "bigint":
+        elif type in ("tinyint", "smallint", "int", "bigint"):
             results.append((column_name, IncrementalFieldType.Integer))
 
     return results
