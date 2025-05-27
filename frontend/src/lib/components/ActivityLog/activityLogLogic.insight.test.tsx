@@ -430,7 +430,7 @@ describe('the activity log logic', () => {
             )
         })
         const formats = ['png', 'pdf', 'csv']
-        formats.map((format) => {
+        formats.forEach((format) => {
             it(`can handle export of insight to ${format}`, async () => {
                 const logic = await insightTestSetup('test insight', 'exported', [
                     {

@@ -558,7 +558,7 @@ export const playerInspectorLogic = kea<playerInspectorLogicType>([
                 segments
                     .filter((segment) => segment.kind === 'gap')
                     .filter((segment) => segment.durationMs > 15000)
-                    .map((segment) => {
+                    .forEach((segment) => {
                         const { timestamp, timeInRecording } = timeRelativeToStart(
                             { timestamp: segment.startTimestamp },
                             start

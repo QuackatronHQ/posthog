@@ -69,7 +69,7 @@ export const projectLogic = kea<projectLogicType>([
                     actions.loadCurrentOrganization()
                     actions.loadUser()
 
-                    Object.keys(payload).map((property) => {
+                    Object.keys(payload).forEach((property) => {
                         eventUsageLogic.findMounted()?.actions?.reportProjectSettingChange(property, payload[property])
                     })
 

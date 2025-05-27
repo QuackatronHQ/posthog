@@ -286,7 +286,7 @@ export function pipelineNodeMenuCommonItems(node: Transformation | SiteApp | Imp
         },
     ]
     if (node.backend === PipelineBackend.Plugin) {
-        items.concat(pluginMenuItems(node))
+        items.push(...pluginMenuItems(node))
     }
     return items
 }
