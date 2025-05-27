@@ -22,7 +22,7 @@ describe('console extension', () => {
         await closeHub(hub)
     })
 
-    Object.values(PluginLogEntryType).map((type) => {
+    Object.values(PluginLogEntryType).forEach((type) => {
         const typeMethod = type.toLowerCase() as keyof ConsoleExtension
 
         describe(`console#${typeMethod}`, () => {

@@ -132,7 +132,7 @@ export const teamLogic = kea<teamLogicType>([
                         message = `${parseUpdatedAttributeName(updatedAttribute)} updated successfully!`
                     }
 
-                    Object.keys(payload).map((property) => {
+                    Object.keys(payload).forEach((property) => {
                         eventUsageLogic.findMounted()?.actions?.reportTeamSettingChange(property, payload[property])
                     })
 

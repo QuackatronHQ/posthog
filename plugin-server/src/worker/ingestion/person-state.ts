@@ -363,14 +363,14 @@ export class PersonState {
         let updated = false
         // tracking as set because we only care about if other or geoip was the cause of the update, not how many properties got updated
         const metricsKeys = new Set<string>()
-        Object.entries(propertiesOnce).map(([key, value]) => {
+        Object.entries(propertiesOnce).forEach(([key, value]) => {
             if (typeof personProperties[key] === 'undefined') {
                 updated = true
                 metricsKeys.add(this.getMetricKey(key))
                 personProperties[key] = value
             }
         })
-        Object.entries(properties).map(([key, value]) => {
+        Object.entries(properties).forEach(([key, value]) => {
             if (personProperties[key] !== value) {
                 if (typeof personProperties[key] === 'undefined' || this.shouldUpdatePersonIfOnlyChange(key)) {
                     updated = true

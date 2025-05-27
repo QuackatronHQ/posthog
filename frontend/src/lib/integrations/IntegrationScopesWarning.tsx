@@ -16,7 +16,7 @@ export function IntegrationScopesWarning({
         const scopes: any[] = []
         const possibleScopeLocation = [integration.config.scope, integration.config.scopes]
 
-        possibleScopeLocation.map((scope) => {
+        possibleScopeLocation.forEach((scope) => {
             if (typeof scope === 'string') {
                 scopes.push(scope.split(' '))
                 scopes.push(scope.split(','))
