@@ -1,6 +1,7 @@
 import json
 import os
 import uuid
+import tempfile
 from datetime import timedelta
 from typing import Literal, Optional
 
@@ -76,8 +77,6 @@ def _export_to_png(exported_asset: ExportedAsset) -> None:
     4. Cleanup: Remove the old file and close the browser session
     """
 
-    image_path = None
-
     try:
         if not settings.SITE_URL:
             raise Exception(
@@ -85,7 +84,7 @@ def _export_to_png(exported_asset: ExportedAsset) -> None:
             )
 
         image_id = str(uuid.uuid4())
-        image_path = os.path.join(TMP_DIR, f"{image_id}.png")
+        tmp = tempfile.TemporaryFile()
 
         if not os.path.exists(TMP_DIR):
             os.makedirs(TMP_DIR)
