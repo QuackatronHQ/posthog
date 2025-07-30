@@ -27,8 +27,8 @@ const checkIsValidHttpUrl = (str) => {
 /**
  * Actions represent the type of change to a location value.
  */
-var Action
-;(function (Action) {
+var Action;
+(function (Action) {
     /**
      * A POP indicates a change to an arbitrary index in the history stack, such
      * as a back or forward navigation. It does not describe the direction of the
@@ -50,7 +50,7 @@ var Action
      */
 
     Action['Replace'] = 'REPLACE'
-})(Action || (Action = {}))
+}(Action || (Action = {})));
 function invariant(value, message) {
     if (value === false || value === null || typeof value === 'undefined') {
         throw new Error(message)
@@ -98,13 +98,13 @@ function parsePath(path) {
     return parsedPath
 }
 
-var ResultType
-;(function (ResultType) {
+var ResultType;
+(function (ResultType) {
     ResultType['data'] = 'data'
     ResultType['deferred'] = 'deferred'
     ResultType['redirect'] = 'redirect'
     ResultType['error'] = 'error'
-})(ResultType || (ResultType = {}))
+}(ResultType || (ResultType = {})));
 /**
  * Matches the given routes to a location and returns the match data.
  *
